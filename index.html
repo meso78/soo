@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Readex+Pro:wght@300;400;600&display=swap">
+<title>نجمتين</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one night sky. She drags her star toward his; each step closer reveals a line; meeting ends it. Deliberately single dark theme. */
+:root {
+  --sky: #0b1026;
+  --ink: #eef0ff;
+  --muted: #9aa3c7;
+  --gold: #ffd27a;
+  --rose: #ff9fb5;
+  --card: rgba(255, 255, 255, .06);
+  --line: rgba(255, 255, 255, .14);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--sky);
+  color: var(--ink);
+  font-family: "Readex Pro", system-ui, sans-serif;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 28px;
+  min-height: 100vh;
+}
+.app { max-width: 480px; margin: 0 auto; display: grid; gap: 16px; }
+h1 { font-family: "Amiri", serif; font-weight: 700; font-size: clamp(30px, 9vw, 40px); line-height: 1.3; margin: 0; text-wrap: balance; }
+.lead { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.7; }
+.sky { position: relative; width: 100%; height: 340px; border-radius: 22px; overflow: hidden; border: 1px solid var(--line); touch-action: none; cursor: grab; }
+.sky:active { cursor: grabbing; }
+canvas { display: block; width: 100%; height: 100%; }
+.meter { display: grid; gap: 6px; }
+.meter-row { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); }
+.meter-row b { color: var(--gold); font-weight: 600; }
+.track { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--rose), var(--gold)); transition: width .2s ease; }
+.lines { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.lines li { font-family: "Amiri", serif; font-size: 21px; line-height: 1.6; padding: 12px 16px; border-radius: 14px; background: var(--card); border-inline-start: 3px solid var(--gold); animation: rise .6s ease both; }
+.final { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 22px 18px; border-radius: 22px; background: var(--card); border: 1px solid var(--line); animation: rise .8s ease both; }
+.final .tag { margin: 0; font-size: 13px; letter-spacing: .5px; color: var(--gold); }
+.final .big { margin: 0; font-family: "Amiri", serif; font-size: clamp(26px, 8vw, 34px); line-height: 1.5; text-wrap: balance; }
+.final .small { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.7; }
+.final .answer { margin: 0; font-family: "Amiri", serif; font-size: 24px; color: var(--rose); }
+button {
+  font: inherit; font-size: 16px; font-weight: 600; padding: 12px 22px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--gold); background: transparent; color: var(--ink); transition: background .2s ease;
+}
+button:hover { background: var(--card); }
+button:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+button.solid { background: var(--gold); color: var(--sky); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+</style>
+
+<div class="app">
+  <h1>سوو، اسحبي نجمتك</h1>
+  <p class="lead">فيه نجمة بعيدة تنتظر في الطرف الثاني من السما. قرّبي نجمتك منها، وشوفي وش يطلع لك في الطريق.</p>
+
+  <div class="sky" id="sky"><canvas id="cv" aria-label="سما فيها نجمتين، اسحبي النجمة الوردية باتجاه الذهبية"></canvas></div>
+
+  <div class="meter">
+    <div class="meter-row"><span>المسافة بيننا</span><b id="stage">بعيدة</b></div>
+    <div class="track"><div class="fill" id="fill"></div></div>
+  </div>
+
+  <div class="row"><button id="step" class="solid">قرّبي خطوة</button></div>
+
+  <ul class="lines" id="lines"></ul>
+  <div id="end"></div>
+</div>
+
+<script>
+const cv = document.getElementById("cv"), sky = document.getElementById("sky");
+const ctx = cv.getContext("2d");
+const linesEl = document.getElementById("lines"), endEl = document.getElementById("end");
+const fill = document.getElementById("fill"), stageEl = document.getElementById("stage"), stepBtn = document.getElementById("step");
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Positions are fractions of the sky box, so a resize keeps the picture
+const HIS = { x: 0.18, y: 0.45 };
+const START = { x: 0.82, y: 0.62 };
+let hers = { ...START };
+const startDist = Math.hypot(START.x - HIS.x, START.y - HIS.y);
+let progress = 0, merged = false, dragging = false;
+let W = 0, H = 0, dpr = 1;
+
+const milestones = [
+  { at: 0.25, text: "كل رسالة منك تقصّر الطريق شوي." },
+  { at: 0.5, text: "صرت أعرف وقتك من غير ما أشوف الساعة." },
+  { at: 0.75, text: "باقي شوي... وتصير المسافة مجرد رقم." },
+];
+let shown = 0;
+
+const stars = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + .3, p: Math.random() * 6.28 }));
+let sparks = [];
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = sky.clientWidth; H = sky.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+addEventListener("resize", resize);
+
+function glow(x, y, r, color) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, color);
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+}
+
+function draw(t) {
+  ctx.fillStyle = "#0b1026";
+  ctx.fillRect(0, 0, W, H);
+  for (const s of stars) {
+    const a = reduced ? .6 : .35 + .35 * Math.sin(t / 900 + s.p);
+    ctx.fillStyle = `rgba(238,240,255,${a})`;
+    ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2); ctx.fill();
+  }
+  const hx = HIS.x * W, hy = HIS.y * H, sx = hers.x * W, sy = hers.y * H;
+
+  // Thread between the two stars grows brighter as they get closer
+  ctx.strokeStyle = `rgba(255,210,122,${.12 + progress * .5})`;
+  ctx.setLineDash([4, 6]);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(sx, sy); ctx.stroke();
+  ctx.setLineDash([]);
+
+  const pulse = reduced ? 0 : Math.sin(t / 500) * 3;
+  glow(hx, hy, 34 + progress * 20 + pulse, "rgba(255,210,122,.55)");
+  if (!merged) glow(sx, sy, 30 + progress * 20 - pulse, "rgba(255,159,181,.55)");
+  ctx.fillStyle = "#ffd27a"; ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2); ctx.fill();
+  if (!merged) { ctx.fillStyle = "#ff9fb5"; ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.fill(); }
+
+  ctx.font = "13px 'Readex Pro', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(238,240,255,.75)";
+  if (!merged) {
+    ctx.fillText("أنا", hx, hy + 30);
+    ctx.fillText("سوو", sx, sy + 30);
+  } else {
+    ctx.fillText("وصلتي", hx, hy + 40);
+  }
+
+  sparks = sparks.filter((p) => p.life > 0);
+  for (const p of sparks) {
+    p.x += p.vx; p.y += p.vy; p.vy += .03; p.life -= 1;
+    ctx.fillStyle = `rgba(255,${p.g},${p.b},${p.life / 60})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2); ctx.fill();
+  }
+  requestAnimationFrame(draw);
+}
+
+function update() {
+  const d = Math.hypot(hers.x - HIS.x, hers.y - HIS.y);
+  progress = Math.max(progress, Math.min(1, 1 - d / startDist)); // never moves backwards
+  fill.style.width = progress * 100 + "%";
+  stageEl.textContent = progress < .25 ? "بعيدة" : progress < .5 ? "تقرب" : progress < .75 ? "قريبة" : progress < .92 ? "قريبة جداً" : "وصلت";
+  while (shown < milestones.length && progress >= milestones[shown].at) {
+    const li = document.createElement("li");
+    li.textContent = milestones[shown].text;
+    linesEl.append(li);
+    shown++;
+  }
+  if (progress >= .92 && !merged) meet();
+}
+
+function meet() {
+  merged = true;
+  hers = { ...HIS };
+  progress = 1;
+  fill.style.width = "100%";
+  stageEl.textContent = "وصلت";
+  stepBtn.hidden = true;
+  for (let i = 0; i < 70; i++) {
+    const a = Math.random() * Math.PI * 2, s = 1 + Math.random() * 3;
+    sparks.push({ x: HIS.x * W, y: HIS.y * H, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 60, g: 180 + Math.random() * 60 | 0, b: 120 + Math.random() * 80 | 0 });
+  }
+  const card = document.createElement("div");
+  card.className = "final";
+  card.innerHTML = `
+    <p class="tag">النجمتين صاروا وحدة</p>
+    <p class="big">بعض الكلام يوصل بدون ما ينقال</p>
+    <p class="small">وإذا ما وصل، عندي وقت أشرحه لك على مهل.</p>
+    <div class="row"><button class="solid" id="got">وصلني</button></div>`;
+  endEl.replaceChildren(card);
+  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  document.getElementById("got").onclick = (e) => {
+    e.target.parentElement.replaceWith(Object.assign(document.createElement("p"), { className: "answer", textContent: "وهذا يكفيني." }));
+    const again = Object.assign(document.createElement("button"), { textContent: "من جديد" });
+    again.onclick = reset;
+    card.append(again);
+  };
+}
+
+function reset() {
+  hers = { ...START };
+  progress = 0; merged = false; shown = 0;
+  linesEl.replaceChildren(); endEl.replaceChildren();
+  stepBtn.hidden = false;
+  update();
+  sky.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function moveTo(e) {
+  const r = sky.getBoundingClientRect();
+  hers.x = Math.min(.96, Math.max(.04, (e.clientX - r.left) / r.width));
+  hers.y = Math.min(.92, Math.max(.08, (e.clientY - r.top) / r.height));
+  update();
+}
+sky.addEventListener("pointerdown", (e) => { if (merged) return; dragging = true; sky.setPointerCapture(e.pointerId); moveTo(e); });
+sky.addEventListener("pointermove", (e) => { if (dragging && !merged) moveTo(e); });
+sky.addEventListener("pointerup", () => (dragging = false));
+sky.addEventListener("pointercancel", () => (dragging = false));
+
+// Button path for anyone who'd rather tap than drag
+stepBtn.onclick = () => {
+  if (merged) return;
+  hers.x += (HIS.x - hers.x) * .3;
+  hers.y += (HIS.y - hers.y) * .3;
+  update();
+};
+
+resize();
+update();
+requestAnimationFrame(draw);
+</script>
+
+</body>
+</html>
