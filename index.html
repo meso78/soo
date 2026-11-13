@@ -8,7 +8,7 @@
 <title>نجمتين</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-/* Layout: one night sky. She drags her star toward his; each step closer reveals a line; meeting ends it. Deliberately single dark theme. */
+/* Layout: one night sky. Level 1: drag her star to his. Level 2: tap stars in order to draw a shape. Then a step-by-step surprise. Deliberately single dark theme. */
 :root {
   --sky: #0b1026;
   --ink: #eef0ff;
@@ -37,16 +37,16 @@ h1 { font-family: "Amiri", serif; font-weight: 700; font-size: clamp(30px, 9vw, 
 canvas { display: block; width: 100%; height: 100%; }
 .meter { display: grid; gap: 6px; }
 .meter-row { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); }
-.meter-row b { color: var(--gold); font-weight: 600; }
+.meter-row b { color: var(--gold); font-weight: 600; font-variant-numeric: tabular-nums; }
 .track { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
 .fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--rose), var(--gold)); transition: width .2s ease; }
 .lines { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .lines li { font-family: "Amiri", serif; font-size: 21px; line-height: 1.6; padding: 12px 16px; border-radius: 14px; background: var(--card); border-inline-start: 3px solid var(--gold); animation: rise .6s ease both; }
-.final { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 22px 18px; border-radius: 22px; background: var(--card); border: 1px solid var(--line); animation: rise .8s ease both; }
-.final .tag { margin: 0; font-size: 13px; letter-spacing: .5px; color: var(--gold); }
-.final .big { margin: 0; font-family: "Amiri", serif; font-size: clamp(26px, 8vw, 34px); line-height: 1.5; text-wrap: balance; }
-.final .small { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.7; }
-.final .answer { margin: 0; font-family: "Amiri", serif; font-size: 24px; color: var(--rose); }
+.card { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 22px 18px; border-radius: 22px; background: var(--card); border: 1px solid var(--line); animation: rise .7s ease both; }
+.card .tag { margin: 0; font-size: 13px; letter-spacing: .5px; color: var(--gold); }
+.card .big { margin: 0; font-family: "Amiri", serif; font-size: clamp(25px, 7.5vw, 32px); line-height: 1.55; text-wrap: balance; }
+.card .small { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.7; text-wrap: balance; }
+.card .answer { margin: 0; font-family: "Amiri", serif; font-size: 23px; line-height: 1.6; color: var(--rose); text-wrap: balance; }
 button {
   font: inherit; font-size: 16px; font-weight: 600; padding: 12px 22px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--gold); background: transparent; color: var(--ink); transition: background .2s ease;
@@ -54,7 +54,7 @@ button {
 button:hover { background: var(--card); }
 button:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 button.solid { background: var(--gold); color: var(--sky); }
-.row { display: flex; gap: 10px; flex-wrap: wrap; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -62,13 +62,13 @@ button.solid { background: var(--gold); color: var(--sky); }
 </style>
 
 <div class="app">
-  <h1>سوو، اسحبي نجمتك</h1>
-  <p class="lead">فيه نجمة بعيدة تنتظر في الطرف الثاني من السما. قرّبي نجمتك منها، وشوفي وش يطلع لك في الطريق.</p>
+  <h1 id="title">سوو، اسحبي نجمتك</h1>
+  <p class="lead" id="lead">فيه نجمة بعيدة تنتظر في الطرف الثاني من السما. قرّبي نجمتك منها، وشوفي وش يطلع لك في الطريق.</p>
 
-  <div class="sky" id="sky"><canvas id="cv" aria-label="سما فيها نجمتين، اسحبي النجمة الوردية باتجاه الذهبية"></canvas></div>
+  <div class="sky" id="sky"><canvas id="cv" aria-label="سما فيها نجوم، اسحبي النجمة الوردية باتجاه الذهبية"></canvas></div>
 
   <div class="meter">
-    <div class="meter-row"><span>المسافة بيننا</span><b id="stage">بعيدة</b></div>
+    <div class="meter-row"><span id="meterLabel">المسافة بيننا</span><b id="stage">بعيدة</b></div>
     <div class="track"><div class="fill" id="fill"></div></div>
   </div>
 
@@ -79,11 +79,15 @@ button.solid { background: var(--gold); color: var(--sky); }
 </div>
 
 <script>
-const cv = document.getElementById("cv"), sky = document.getElementById("sky");
-const ctx = cv.getContext("2d");
-const linesEl = document.getElementById("lines"), endEl = document.getElementById("end");
-const fill = document.getElementById("fill"), stageEl = document.getElementById("stage"), stepBtn = document.getElementById("step");
+const $ = (id) => document.getElementById(id);
+const cv = $("cv"), sky = $("sky"), ctx = cv.getContext("2d");
+const linesEl = $("lines"), endEl = $("end"), fill = $("fill"), stageEl = $("stage");
+const stepBtn = $("step"), titleEl = $("title"), leadEl = $("lead"), meterLabel = $("meterLabel");
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const INTRO = { title: titleEl.textContent, lead: leadEl.textContent };
+
+// mode: "drag" (level 1) -> "connect" (level 2) -> "wish" (shooting star) -> "done"
+let mode = "drag";
 
 // Positions are fractions of the sky box, so a resize keeps the picture
 const HIS = { x: 0.18, y: 0.45 };
@@ -91,7 +95,7 @@ const START = { x: 0.82, y: 0.62 };
 let hers = { ...START };
 const startDist = Math.hypot(START.x - HIS.x, START.y - HIS.y);
 let progress = 0, merged = false, dragging = false;
-let W = 0, H = 0, dpr = 1;
+let W = 0, H = 0;
 
 const milestones = [
   { at: 0.12, text: "أول خطوة دايماً أصعب شي." },
@@ -103,17 +107,55 @@ const milestones = [
 ];
 let shown = 0;
 
+// Level 2: ten stars on a heart-shaped path, tapped in order
+const SHAPE = Array.from({ length: 10 }, (_, i) => {
+  const t = (Math.PI * 2 * i) / 10;
+  const x = 16 * Math.sin(t) ** 3;
+  const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+  return { x: 0.5 + (x / 16) * 0.3, y: 0.47 - (y / 17) * 0.38 };
+});
+let linked = 0;
+
 const stars = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + .3, p: Math.random() * 6.28 }));
 let sparks = [];
 
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+function btn(label, fn, solid) {
+  const b = el("button", solid ? "solid" : "", label);
+  b.onclick = fn;
+  return b;
+}
+function card(...nodes) {
+  const c = el("div", "card");
+  c.append(...nodes);
+  endEl.replaceChildren(c);
+  c.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  return c;
+}
+function burst(fx, fy, count) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2, s = 1 + Math.random() * 3;
+    sparks.push({ x: fx * W, y: fy * H, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 60, g: 180 + Math.random() * 60 | 0, b: 120 + Math.random() * 80 | 0 });
+  }
+}
+
 function resize() {
-  dpr = window.devicePixelRatio || 1;
+  const dpr = window.devicePixelRatio || 1;
   W = sky.clientWidth; H = sky.clientHeight;
   cv.width = W * dpr; cv.height = H * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 addEventListener("resize", resize);
 
+function dot(x, y, r, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+}
 function glow(x, y, r, color) {
   const g = ctx.createRadialGradient(x, y, 0, x, y, r);
   g.addColorStop(0, color);
@@ -122,29 +164,18 @@ function glow(x, y, r, color) {
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
 }
 
-function draw(t) {
-  ctx.fillStyle = "#0b1026";
-  ctx.fillRect(0, 0, W, H);
-  for (const s of stars) {
-    const a = reduced ? .6 : .35 + .35 * Math.sin(t / 900 + s.p);
-    ctx.fillStyle = `rgba(238,240,255,${a})`;
-    ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2); ctx.fill();
-  }
+function drawLevel1(t) {
   const hx = HIS.x * W, hy = HIS.y * H, sx = hers.x * W, sy = hers.y * H;
-
-  // Thread between the two stars grows brighter as they get closer
   ctx.strokeStyle = `rgba(255,210,122,${.12 + progress * .5})`;
   ctx.setLineDash([4, 6]);
   ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(sx, sy); ctx.stroke();
   ctx.setLineDash([]);
-
   const pulse = reduced ? 0 : Math.sin(t / 500) * 3;
   glow(hx, hy, 34 + progress * 20 + pulse, "rgba(255,210,122,.55)");
   if (!merged) glow(sx, sy, 30 + progress * 20 - pulse, "rgba(255,159,181,.55)");
-  ctx.fillStyle = "#ffd27a"; ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2); ctx.fill();
-  if (!merged) { ctx.fillStyle = "#ff9fb5"; ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.fill(); }
-
+  dot(hx, hy, 6, "#ffd27a");
+  if (!merged) dot(sx, sy, 6, "#ff9fb5");
   ctx.font = "13px 'Readex Pro', sans-serif";
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(238,240,255,.75)";
@@ -154,25 +185,75 @@ function draw(t) {
   } else {
     ctx.fillText("وصلتي", hx, hy + 40);
   }
+}
+
+function drawShape(t) {
+  const done = linked >= SHAPE.length;
+  ctx.strokeStyle = done ? "rgba(255,210,122,.9)" : "rgba(255,210,122,.7)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < linked; i++) {
+    const p = SHAPE[i];
+    if (i === 0) ctx.moveTo(p.x * W, p.y * H); else ctx.lineTo(p.x * W, p.y * H);
+  }
+  if (done) ctx.closePath();
+  ctx.stroke();
+  if (done) {
+    ctx.fillStyle = "rgba(255,159,181,.10)";
+    ctx.fill();
+  }
+  SHAPE.forEach((p, i) => {
+    const x = p.x * W, y = p.y * H;
+    if (i < linked || done) { glow(x, y, 16, "rgba(255,210,122,.5)"); dot(x, y, 4, "#ffd27a"); }
+    else if (i === linked) {
+      const r = reduced ? 14 : 12 + Math.sin(t / 250) * 4;
+      ctx.strokeStyle = "rgba(255,159,181,.9)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+      dot(x, y, 4, "#ff9fb5");
+    } else dot(x, y, 3, "rgba(238,240,255,.6)");
+  });
+}
+
+function drawShootingStar(t) {
+  const p = ((t % 3200) / 3200);
+  if (p > 0.4) return;
+  const k = p / 0.4;
+  const x = W * (1.1 - 1.3 * k), y = H * (0.08 + 0.25 * k);
+  const g = ctx.createLinearGradient(x, y, x + 90, y - 18);
+  g.addColorStop(0, "rgba(255,255,255,.95)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.strokeStyle = g; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 90, y - 18); ctx.stroke();
+  dot(x, y, 2.5, "#ffffff");
+}
+
+function draw(t) {
+  ctx.fillStyle = "#0b1026";
+  ctx.fillRect(0, 0, W, H);
+  for (const s of stars) {
+    const a = reduced ? .6 : .35 + .35 * Math.sin(t / 900 + s.p);
+    dot(s.x * W, s.y * H, s.r, `rgba(238,240,255,${a})`);
+  }
+  if (mode === "drag") drawLevel1(t);
+  else drawShape(t);
+  if (mode === "wish" || mode === "done") drawShootingStar(t);
 
   sparks = sparks.filter((p) => p.life > 0);
   for (const p of sparks) {
     p.x += p.vx; p.y += p.vy; p.vy += .03; p.life -= 1;
-    ctx.fillStyle = `rgba(255,${p.g},${p.b},${p.life / 60})`;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2); ctx.fill();
+    dot(p.x, p.y, 2, `rgba(255,${p.g},${p.b},${p.life / 60})`);
   }
   requestAnimationFrame(draw);
 }
 
+/* ---------- Level 1: drag the stars together ---------- */
 function update() {
   const d = Math.hypot(hers.x - HIS.x, hers.y - HIS.y);
   progress = Math.max(progress, Math.min(1, 1 - d / startDist)); // never moves backwards
   fill.style.width = progress * 100 + "%";
   stageEl.textContent = progress < .25 ? "بعيدة" : progress < .5 ? "تقرب" : progress < .75 ? "قريبة" : progress < .92 ? "قريبة جداً" : "وصلت";
   while (shown < milestones.length && progress >= milestones[shown].at) {
-    const li = document.createElement("li");
-    li.textContent = milestones[shown].text;
-    linesEl.append(li);
+    linesEl.append(el("li", "", milestones[shown].text));
     shown++;
   }
   if (progress >= .92 && !merged) meet();
@@ -185,48 +266,145 @@ function meet() {
   fill.style.width = "100%";
   stageEl.textContent = "وصلت";
   stepBtn.hidden = true;
-  for (let i = 0; i < 70; i++) {
-    const a = Math.random() * Math.PI * 2, s = 1 + Math.random() * 3;
-    sparks.push({ x: HIS.x * W, y: HIS.y * H, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 60, g: 180 + Math.random() * 60 | 0, b: 120 + Math.random() * 80 | 0 });
+  burst(HIS.x, HIS.y, 70);
+  card(
+    el("p", "tag", "النجمتين صاروا وحدة"),
+    el("p", "big", "بس الطريق ما خلص هنا"),
+    el("p", "small", "فيه نجوم ثانية في السما تنتظرك."),
+    btn("كمّلي", startConnect, true)
+  );
+}
+
+/* ---------- Level 2: tap stars in order ---------- */
+function startConnect() {
+  mode = "connect";
+  linked = 0;
+  titleEl.textContent = "ارسمي بالنجوم";
+  leadEl.textContent = "اضغطي النجمة اللي حولها دائرة، وبعدها اللي بعدها، لين تكتمل الصورة.";
+  meterLabel.textContent = "النجوم";
+  stageEl.textContent = `0 من ${SHAPE.length}`;
+  fill.style.width = "0%";
+  endEl.replaceChildren();
+  sky.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function tapStar(e) {
+  const r = sky.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  const p = SHAPE[linked];
+  if (Math.hypot(x - p.x * W, y - p.y * H) > 34) return;
+  linked++;
+  burst(p.x, p.y, 12);
+  fill.style.width = (linked / SHAPE.length) * 100 + "%";
+  stageEl.textContent = `${linked} من ${SHAPE.length}`;
+  if (linked === 5) linesEl.append(el("li", "", "كل نجمة هنا كانت يوم من أيامنا."));
+  if (linked === SHAPE.length) {
+    burst(0.5, 0.45, 90);
+    titleEl.textContent = "اكتملت الصورة";
+    leadEl.textContent = "خذي نفس... فيه كم شي باقي.";
+    setTimeout(guess, 900);
   }
-  const card = document.createElement("div");
-  card.className = "final";
-  card.innerHTML = `
-    <p class="tag">النجمتين صاروا وحدة</p>
-    <p class="big">بعض الكلام يوصل بدون ما ينقال</p>
-    <p class="small">وإذا ما وصل، عندي وقت أشرحه لك على مهل.</p>
-    <p class="tag">سعد</p>
-    <div class="row"><button class="solid" id="got">وصلني</button></div>`;
-  endEl.replaceChildren(card);
-  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  document.getElementById("got").onclick = (e) => {
-    e.target.parentElement.replaceWith(
-      Object.assign(document.createElement("p"), { className: "answer", textContent: "وهذا يكفيني." }),
-      Object.assign(document.createElement("p"), { className: "small", textContent: "ولو تبين، نكمل الطريق من هنا سوا." })
-    );
-    const again = Object.assign(document.createElement("button"), { textContent: "من جديد" });
-    again.onclick = reset;
-    card.append(again);
+}
+
+/* ---------- The surprise, one step at a time ---------- */
+function guess() {
+  const c = card(
+    el("p", "tag", "النجوم رسمت شي"),
+    el("p", "big", "تعرفين وش هو؟")
+  );
+  const row = el("div", "row");
+  const answer = (text) => {
+    row.replaceWith(el("p", "answer", text), btn("افتحي الورقة الأولى", () => note(0), true));
   };
+  row.append(
+    btn("إيه", () => answer("أدري إنه واضح شوي.")),
+    btn("لا", () => answer("مو مشكلة، بعض الأشياء تنحس أكثر من ما تنشاف."))
+  );
+  c.append(row);
+}
+
+const notes = [
+  "أول مرة كلمتك، ما كنت أدري إن الشاشة ممكن تكون دافية كذا.",
+  "صرت أعرف طريقتك بالكتابة، حتى لو ما كتبتي اسمك بعرفك.",
+  "وكل ليلة قبل ما أنام، آخر شي أشوفه رسالة منك.",
+];
+function note(i) {
+  card(
+    el("p", "tag", `ورقة ${i + 1} من ${notes.length}`),
+    el("p", "big", notes[i]),
+    i < notes.length - 1
+      ? btn("الورقة اللي بعدها", () => note(i + 1), true)
+      : btn("وبعدين؟", wish, true)
+  );
+}
+
+function wish() {
+  mode = "wish";
+  titleEl.textContent = "شوفي فوق";
+  leadEl.textContent = "فيه نجمة طايحة تمر كل شوي. لما تشوفينها، تمني.";
+  sky.scrollIntoView({ behavior: "smooth", block: "center" });
+  const c = card(
+    el("p", "tag", "نجمة طايحة"),
+    el("p", "big", "تمني أمنية، ولا تقولينها لأحد")
+  );
+  const b = btn("تمنيت", () => {
+    b.replaceWith(
+      el("p", "answer", "وأنا تمنيت شي... وأظنه نفس اللي تمنيتيه."),
+      btn("آخر شي", finale, true)
+    );
+  }, true);
+  c.append(b);
+}
+
+function finale() {
+  mode = "done";
+  titleEl.textContent = "سوو";
+  leadEl.textContent = "وصلتي لآخر السما.";
+  burst(0.5, 0.45, 120);
+  const c = card(
+    el("p", "tag", "آخر رسالة"),
+    el("p", "big", "بعض الكلام يوصل بدون ما ينقال"),
+    el("p", "small", "وإذا ما وصل، عندي وقت أشرحه لك على مهل."),
+    el("p", "tag", "سعد")
+  );
+  const b = btn("وصلني", () => {
+    b.replaceWith(
+      el("p", "answer", "وهذا يكفيني."),
+      el("p", "small", "ولو تبين، نكمل الطريق من هنا سوا."),
+      btn("من جديد", reset)
+    );
+  }, true);
+  c.append(b);
 }
 
 function reset() {
+  mode = "drag";
   hers = { ...START };
-  progress = 0; merged = false; shown = 0;
+  progress = 0; merged = false; shown = 0; linked = 0;
   linesEl.replaceChildren(); endEl.replaceChildren();
+  titleEl.textContent = INTRO.title;
+  leadEl.textContent = INTRO.lead;
+  meterLabel.textContent = "المسافة بيننا";
   stepBtn.hidden = false;
   update();
   sky.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+/* ---------- Input ---------- */
 function moveTo(e) {
   const r = sky.getBoundingClientRect();
   hers.x = Math.min(.96, Math.max(.04, (e.clientX - r.left) / r.width));
   hers.y = Math.min(.92, Math.max(.08, (e.clientY - r.top) / r.height));
   update();
 }
-sky.addEventListener("pointerdown", (e) => { if (merged) return; dragging = true; sky.setPointerCapture(e.pointerId); moveTo(e); });
-sky.addEventListener("pointermove", (e) => { if (dragging && !merged) moveTo(e); });
+sky.addEventListener("pointerdown", (e) => {
+  if (mode === "connect" && linked < SHAPE.length) return tapStar(e);
+  if (mode !== "drag" || merged) return;
+  dragging = true;
+  sky.setPointerCapture(e.pointerId);
+  moveTo(e);
+});
+sky.addEventListener("pointermove", (e) => { if (dragging && mode === "drag" && !merged) moveTo(e); });
 sky.addEventListener("pointerup", () => (dragging = false));
 sky.addEventListener("pointercancel", () => (dragging = false));
 
