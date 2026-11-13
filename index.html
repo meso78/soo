@@ -94,9 +94,12 @@ let progress = 0, merged = false, dragging = false;
 let W = 0, H = 0, dpr = 1;
 
 const milestones = [
+  { at: 0.12, text: "أول خطوة دايماً أصعب شي." },
   { at: 0.25, text: "كل رسالة منك تقصّر الطريق شوي." },
-  { at: 0.5, text: "صرت أعرف وقتك من غير ما أشوف الساعة." },
-  { at: 0.75, text: "باقي شوي... وتصير المسافة مجرد رقم." },
+  { at: 0.4, text: "صرت أعرف وقتك من غير ما أشوف الساعة." },
+  { at: 0.55, text: "حتى الأيام العادية صار لها طعم ثاني." },
+  { at: 0.7, text: "وكل ما تأخر ردك، صرت أطالع الشاشة أكثر." },
+  { at: 0.82, text: "باقي شوي... وتصير المسافة مجرد رقم." },
 ];
 let shown = 0;
 
@@ -146,7 +149,7 @@ function draw(t) {
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(238,240,255,.75)";
   if (!merged) {
-    ctx.fillText("أنا", hx, hy + 30);
+    ctx.fillText("سعد", hx, hy + 30);
     ctx.fillText("سوو", sx, sy + 30);
   } else {
     ctx.fillText("وصلتي", hx, hy + 40);
@@ -192,11 +195,15 @@ function meet() {
     <p class="tag">النجمتين صاروا وحدة</p>
     <p class="big">بعض الكلام يوصل بدون ما ينقال</p>
     <p class="small">وإذا ما وصل، عندي وقت أشرحه لك على مهل.</p>
+    <p class="tag">سعد</p>
     <div class="row"><button class="solid" id="got">وصلني</button></div>`;
   endEl.replaceChildren(card);
   card.scrollIntoView({ behavior: "smooth", block: "nearest" });
   document.getElementById("got").onclick = (e) => {
-    e.target.parentElement.replaceWith(Object.assign(document.createElement("p"), { className: "answer", textContent: "وهذا يكفيني." }));
+    e.target.parentElement.replaceWith(
+      Object.assign(document.createElement("p"), { className: "answer", textContent: "وهذا يكفيني." }),
+      Object.assign(document.createElement("p"), { className: "small", textContent: "ولو تبين، نكمل الطريق من هنا سوا." })
+    );
     const again = Object.assign(document.createElement("button"), { textContent: "من جديد" });
     again.onclick = reset;
     card.append(again);
@@ -226,8 +233,8 @@ sky.addEventListener("pointercancel", () => (dragging = false));
 // Button path for anyone who'd rather tap than drag
 stepBtn.onclick = () => {
   if (merged) return;
-  hers.x += (HIS.x - hers.x) * .3;
-  hers.y += (HIS.y - hers.y) * .3;
+  hers.x += (HIS.x - hers.x) * .2;
+  hers.y += (HIS.y - hers.y) * .2;
   update();
 };
 
